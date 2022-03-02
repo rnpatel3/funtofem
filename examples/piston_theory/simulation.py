@@ -24,6 +24,7 @@ with piston theory and a simple wing structure
 """
 
 import sys
+import numpy as np
 from pyfuntofem.model import *
 from pyfuntofem.driver import *
 from pyfuntofem.pistontheory_interface import PistonInterface
@@ -80,7 +81,15 @@ solvers = {}
 
 qinf = 101325.0 # freestream pressure
 M = 1.2     # Mach number
-solvers['flow'] = PistonInterface(comm, onera, qinf, M)
+x0 = np.array([1,1,1])
+length_dir = np.array([1, 0, 0]) #Unit vec in length dir
+width_dir = np.array([0, 1, 0])     #Unit vec in width dir
+L = 2.0 #Length
+nL = 20 # Num elems in xi dir
+w = 3.0  #Width
+nw = 10 # Num elems in eta dir
+solvers['flow'] = PistonInterface(comm, onera, qinf, M, x0, length_dir, width_dir,
+       L, w, nL, nw)
 solvers['structural'] = OneraPlate(comm, tacs_comm, onera, n_tacs_procs)
 
 # Specify the transfer scheme options
