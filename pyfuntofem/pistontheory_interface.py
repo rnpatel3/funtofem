@@ -150,11 +150,11 @@ class PistonInterface(SolverInterface):
             for ibody,body in enumerate(bodies,1):
                 if body.shape and body.aero_nnodes > 0:
                     aero_X = np.reshape(body.aero_X, (3,-1), order='F')
-                    interface.design_push_body_mesh(ibody, aero_X, body.aero_id)
-                    interface.design_push_body_name(ibody, body.name)
-                else:
-                    interface.design_push_body_mesh(ibody, [], [])
-                    interface.design_push_body_name(ibody, body.name)
+                    #interface.design_push_body_mesh(ibody, aero_X, body.aero_id)
+                    #interface.design_push_body_name(ibody, body.name)
+                #else:
+                    #interface.design_push_body_mesh(ibody, [], [])
+                    #interface.design_push_body_name(ibody, body.name)
 
         '''
         bcont = self.fun3d_flow.initialize_solution()
@@ -287,6 +287,8 @@ class PistonInterface(SolverInterface):
         bodies: :class:`~body.Body`
             list of FUNtoFEM bodies
         """
+        pass 
+        '''
         for function in scenario.functions:
             if function.adjoint:
                 start =  1 if function.stop==-1 else function.start
@@ -321,7 +323,7 @@ class PistonInterface(SolverInterface):
                                                      1.0,
                                                      0.0,
                                                      1.0)
-
+        '''
         return
 
     def set_variables(self, scenario, bodies):
@@ -338,7 +340,9 @@ class PistonInterface(SolverInterface):
         bodies: :class:`~body.Body`
             list of FUNtoFEM bodies. Bodies contains unused but necessary rigid motion variables
         """
+        pass
 
+    '''
         interface.design_set_design(len(bodies), scenario.count_adjoint_functions())
 
         # push the global aerodynamic variables to fun3d
@@ -363,7 +367,7 @@ class PistonInterface(SolverInterface):
             for var in body.variables['rigid_motion']:
                 interface.design_push_body_rigid_var(ibody, var.id, var.name, var.active,
                                                      var.value, var.lower, var.upper)
-
+        '''
     def get_functions(self, scenario, bodies):
         """
         Populate the scenario with the aerodynamic function values.
