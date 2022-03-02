@@ -21,6 +21,7 @@ limitations under the License.
 """
 
 from __future__ import print_function
+from turtle import width
 
 import numpy as np
 import os
@@ -71,13 +72,16 @@ class PistonInterface(SolverInterface):
         self.length_dir = length_dir
         self.width_dir = width_dir
         self.L = L
-        self.w = w
+        self.width = w
         self.nL = nL #num elems in xi direction
         self.nw = nw #num elems in eta direction
 
+        self.n = np.cross(self.width_dir, self.length_dir) #Setup vector normal to plane
+        self.w = []
+
         # Get the initial aero surface meshes
         self.initialize(model.scenarios[0], model.bodies, first_pass=True)
-        self.post(model.scenarios[0], model.bodies, first_pass=True)
+        #self.post(model.scenarios[0], model.bodies, first_pass=True)
 
         # Temporary measure until FUN3D adjoint is reformulated
         #self.flow_dt = flow_dt
@@ -166,10 +170,11 @@ class PistonInterface(SolverInterface):
                 body.aero_nnodes = (self.nL+1) * (self.nw+1)
                 body.aero_X = np.zeros(3*body.aero_nnodes, dtype=TransferScheme.dtype)
                 if body.aero_nnodes > 0:
+                    body.aero_id = np.arange(1,body.aero_nnodes)
                     #Extracting node locations
                     for i in range(self.nL+1):
                         for j in range(self.nw+1):
-                            coord = self.x0 + i*self.L/self.nL* self.length_dir + j*self.w/self.nw * self.width_dir
+                            coord = self.x0 + i*self.L/self.nL* self.length_dir + j*self.width/self.nw * self.width_dir
                             body.aero_X[3*(self.nw+1)*i + j*3] = coord[0]
                             body.aero_X[3*(self.nw+1)*i + j*3 + 1] = coord[1]
                             body.aero_X[3*(self.nw+1)*i + j*3 + 2] = coord[2]
@@ -469,30 +474,26 @@ class PistonInterface(SolverInterface):
 
         # Deform aerodynamic mesh
         for ibody, body in enumerate(bodies,1):
-            if 'deform' in body.motion_type and body.aero_nnodes > 0 and body.transfer is not None:
-                dx = np.asfortranarray(body.aero_disps[0::3])
-                dy = np.asfortranarray(body.aero_disps[1::3])
-                dz = np.asfortranarray(body.aero_disps[2::3])
+            #Compute aero displacements, divide into dx,dy,dz
+            dx = body.aero_disps[0::3]
+            dy = body.aero_disps[1::3]
+            dz = body.aero_disps[2::3]
 
-                self.fun3d_flow.input_deformation(dx, dy, dz, body=ibody)
-            if 'rigid' in body.motion_type and body.transfer is not None:
-                transform = np.asfortranarray(body.rigid_transform)
-                self.fun3d_flow.input_rigid_transform(transform,body=ibody)
-            if body.thermal_transfer is not None and body.aero_nnodes > 0:
-                temps = np.asfortranarray(body.aero_temps[:])/body.T_ref
-                self.fun3d_flow.input_wall_temperature(temps, body=ibody)
+            disps = np.stack((dx,dy,dz), axis=1)
 
-        # Take a step in FUN3D
-        self.comm.Barrier()
-        bcont = self.fun3d_flow.iterate()
-        if bcont == 0:
-            if self.comm.Get_rank() == 0:
-                print("Negative volume returning fail")
-            fail = 1
-            os.chdir("../..")
-            return fail
+            #Compute w for piston theory: [dx,dy,dz] DOT planarNormal
+            self.w = disps@np.transpose(self.n)
 
-        # Pull out the forces from FUN3D
+            # Compute body.aero_loads using Piston Theory -------
+
+            #First compute dw/dxi
+
+            #Set dw/dt = 0  for now
+
+            #Call function to compute pressure
+
+            #Compute forces from pressure
+
         for ibody, body in enumerate(bodies,1):
             if body.transfer is not None:
                 body.aero_loads = np.zeros(3*body.aero_nnodes, dtype=TransferScheme.dtype)
