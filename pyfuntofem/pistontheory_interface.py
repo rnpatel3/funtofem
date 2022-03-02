@@ -38,7 +38,8 @@ class PistonInterface(SolverInterface):
     FUN3D's FUNtoFEM coupling interface requires no additional configure flags to compile.
     To tell FUN3D that a body's motion should be driven by FUNtoFEM, set *motion_driver(i)='funtofem'*.
     """
-    def __init__(self, comm, model, qinf, M, flow_dt=1.0,
+    def __init__(self, comm, model, qinf, M, x0, length_dir, width_dir, L, w, nL, nw,
+                 flow_dt=1.0,
                  forward_options=None, adjoint_options=None):
         """
         The instantiation of the FUN3D interface class will populate the model with the aerodynamic surface mesh, body.aero_X and body.aero_nnodes.
@@ -63,6 +64,16 @@ class PistonInterface(SolverInterface):
         # command line options
         self.forward_options = forward_options
         self.adjoint_options = adjoint_options
+                
+        self.qinf = qinf # dynamic pressure
+        self.M = M
+        self.x0 = x0
+        self.length_dir = length_dir
+        self.width_dir = width_dir
+        self.L = L
+        self.w = w
+        self.nL = nL #num elems in xi direction
+        self.nw = nw #num elems in eta direction
 
         # Get the initial aero surface meshes
         self.initialize(model.scenarios[0], model.bodies, first_pass=True)
@@ -71,8 +82,7 @@ class PistonInterface(SolverInterface):
         # Temporary measure until FUN3D adjoint is reformulated
         #self.flow_dt = flow_dt
 
-        # dynamic pressure
-        self.qinf = qinf
+        
         self.dFdqinf = []
 
         # heat flux
@@ -153,15 +163,17 @@ class PistonInterface(SolverInterface):
         
         if first_pass:
             for ibody, body in enumerate(bodies,1):
-                body.aero_nnodes = self.fun3d_flow.extract_surface_num(body=ibody)
+                body.aero_nnodes = (self.nL+1) * (self.nw+1)
                 body.aero_X = np.zeros(3*body.aero_nnodes, dtype=TransferScheme.dtype)
                 if body.aero_nnodes > 0:
-                    x, y, z = self.fun3d_flow.extract_surface(body.aero_nnodes, body=ibody)
-                    body.aero_id = self.fun3d_flow.extract_surface_id(body.aero_nnodes, body=ibody)
+                    #Extracting node locations
+                    for i in range(self.nL+1):
+                        for j in range(self.nw+1):
+                            coord = self.x0 + i*self.L/self.nL* self.length_dir + j*self.w/self.nw * self.width_dir
+                            body.aero_X[3*(self.nw+1)*i + j*3] = coord[0]
+                            body.aero_X[3*(self.nw+1)*i + j*3 + 1] = coord[1]
+                            body.aero_X[3*(self.nw+1)*i + j*3 + 2] = coord[2]
 
-                    body.aero_X[ ::3] = x[:]
-                    body.aero_X[1::3] = y[:]
-                    body.aero_X[2::3] = z[:]
                 else:
                     body.aero_id = np.zeros(3*body.aero_nnodes, dtype=int)
 
