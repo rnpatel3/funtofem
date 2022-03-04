@@ -79,8 +79,9 @@ onera.add_body(wing)
 # Instatiate the flow and structural solvers
 solvers = {}
 
-qinf = 101325.0 # freestream pressure
+qinf = 101325.0 # freestream pressure Pa
 M = 1.2     # Mach number
+U_inf = 411 #Freestream velocity m/s
 x0 = np.array([1,1,1])
 length_dir = np.array([1, 0, 0]) #Unit vec in length dir
 width_dir = np.array([0, 1, 0])     #Unit vec in width dir
@@ -88,7 +89,7 @@ L = 2.0 #Length
 nL = 20 # Num elems in xi dir
 w = 3.0  #Width
 nw = 10 # Num elems in eta dir
-solvers['flow'] = PistonInterface(comm, onera, qinf, M, x0, length_dir, width_dir,
+solvers['flow'] = PistonInterface(comm, onera, qinf, M, U_inf, x0, length_dir, width_dir,
        L, w, nL, nw)
 solvers['structural'] = OneraPlate(comm, tacs_comm, onera, n_tacs_procs)
 

@@ -39,7 +39,7 @@ class PistonInterface(SolverInterface):
     FUN3D's FUNtoFEM coupling interface requires no additional configure flags to compile.
     To tell FUN3D that a body's motion should be driven by FUNtoFEM, set *motion_driver(i)='funtofem'*.
     """
-    def __init__(self, comm, model, qinf, M, x0, length_dir, width_dir, L, w, nL, nw,
+    def __init__(self, comm, model, qinf, M, U_inf, x0, length_dir, width_dir, L, w, nL, nw,
                  flow_dt=1.0,
                  forward_options=None, adjoint_options=None):
         """
@@ -68,6 +68,8 @@ class PistonInterface(SolverInterface):
                 
         self.qinf = qinf # dynamic pressure
         self.M = M
+        self.U_inf = U_inf
+        self.gamma = 1.4
         self.x0 = x0
         self.length_dir = length_dir
         self.width_dir = width_dir
@@ -488,15 +490,31 @@ class PistonInterface(SolverInterface):
             #Compute w for piston theory: [dx,dy,dz] DOT planarNormal
             self.w = disps@np.transpose(self.n)
 
-            # Compute body.aero_loads using Piston Theory -------
+            # Compute body.aero_loads using Piston Theory:
 
             #First compute dw/dxi
+            CD_mat = np.zeros((self.nL+1, self.nw+1)) #Matrix for central difference
+            diag_ones = np.ones(body.aero_nnodes-1)
+            diag_neg = -np.ones(body.aero_nnodes-1)
+            CD_mat += np.diag(diag_ones, 1)
+            CD_mat += np.diag(diag_neg,-1)
+            CD_mat[0][0] = -2
+            CD_mat[0][1] = 2
+            CD_mat[-1][-2] = -2
+            CD_mat[-1][-1] = 2
+
+            dw_dxi = 1/(2*self.L/self.nL)*CD_mat@self.w
 
             #Set dw/dt = 0  for now
+            dw_dt = np.zeros(body.aero_nnodes)
 
             #Call function to compute pressure
-
+            press_i = self.compute_Pressure(dw_dxi, dw_dt)
+            
             #Compute forces from pressure
+            areas = self.compute_Areas(bodies)
+            body.aero_loads = np.multiply(press_i, areas)
+
 
         for ibody, body in enumerate(bodies,1):
             if body.transfer is not None:
@@ -537,6 +555,30 @@ class PistonInterface(SolverInterface):
                     self.heat_flux_mag_hist[scenario.id][step][ibody] = body.aero_heat_flux_mag.copy()
                     self.aero_temps_hist[scenario.id][step][ibody] = body.aero_temps.copy()
         return 0
+
+    def compute_Pressure(self, dw_dxi, dw_dt):
+        '''
+        Returns 'pressure' values at each node location
+        '''
+        press = 2*self.qinf/self.M * ((1/self.U_inf * dw_dt + dw_dxi) +
+         (self.gamma+1)/4*self.M*(1/self.U_inf * dw_dt + dw_dxi)**2 + 
+         (self.gamma+1)/12*self.M**2 * (1/self.U_inf* dw_dt + dw_dxi)**3)
+        
+        return press
+
+    def compute_Areas(self, bodies):
+        '''
+        Computes area corresponding to each node (calculations based on rectangular
+        evenly spaced mesh grid)
+        '''
+        for ibody, body in enumerate(bodies,1):
+            area_array = (self.L/self.nL)*(self.width/self.nw) * np.ones(body.aero_nnodes) #Array of area corresponding to each node
+            area_array[0:self.nw+1] *= 0.5
+            area_array[-1:-self.nw-2:-1] *= 0.5
+            area_array[0::self.nw+1] *= 0.5
+            area_array[self.nw::self.nw+1] *= 0.5
+
+        return area_array
 
     def post(self, scenario, bodies, first_pass=False):
         """
