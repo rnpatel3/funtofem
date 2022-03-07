@@ -493,7 +493,7 @@ class PistonInterface(SolverInterface):
             # Compute body.aero_loads using Piston Theory:
 
             #First compute dw/dxi
-            CD_mat = np.zeros((self.nL+1, self.nw+1)) #Matrix for central difference
+            CD_mat = np.zeros((body.aero_nnodes,body.aero_nnodes)) #Matrix for central difference
             diag_ones = np.ones(body.aero_nnodes-1)
             diag_neg = -np.ones(body.aero_nnodes-1)
             CD_mat += np.diag(diag_ones, 1)
@@ -513,9 +513,16 @@ class PistonInterface(SolverInterface):
             
             #Compute forces from pressure
             areas = self.compute_Areas(bodies)
-            body.aero_loads = np.multiply(press_i, areas)
+            aero_forces = np.multiply(press_i, areas)
+            body.aero_loads = np.zeros(3*body.aero_nnodes, dtype=TransferScheme.dtype)
 
+            body.aero_loads[0::3] = aero_forces*self.n[0]
+            body.aero_loads[1::3] = aero_forces*self.n[1]
+            body.aero_loads[2::3] = aero_forces*self.n[2]
 
+            print(body.aero_loads)
+
+        ''' 
         for ibody, body in enumerate(bodies,1):
             if body.transfer is not None:
                 body.aero_loads = np.zeros(3*body.aero_nnodes, dtype=TransferScheme.dtype)
@@ -554,6 +561,7 @@ class PistonInterface(SolverInterface):
                     self.heat_flux_hist[scenario.id][step][ibody] = body.aero_heat_flux.copy()
                     self.heat_flux_mag_hist[scenario.id][step][ibody] = body.aero_heat_flux_mag.copy()
                     self.aero_temps_hist[scenario.id][step][ibody] = body.aero_temps.copy()
+        '''
         return 0
 
     def compute_Pressure(self, dw_dxi, dw_dt):
@@ -594,8 +602,8 @@ class PistonInterface(SolverInterface):
         first_pass: bool
             Set to true during instantiation
         """
-        self.fun3d_flow.post()
-        os.chdir("../..")
+        #self.fun3d_flow.post()
+        #os.chdir("../..")
 
         # save the forces for multiple scenarios if steady
         if scenario.steady and not first_pass:
