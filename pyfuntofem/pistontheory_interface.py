@@ -460,7 +460,7 @@ class PistonInterface(SolverInterface):
 
     def iterate(self, scenario, bodies, step):
         """
-        Forward iteration of FUN3D.
+        Forward iteration of Piston Theory.
         For the aeroelastic cases, these steps are:
 
         #. Get the mesh movement - the bodies' surface displacements and rigid rotations.
@@ -477,7 +477,7 @@ class PistonInterface(SolverInterface):
         step: int
             the time step number
         """
-
+        
         # Deform aerodynamic mesh
         for ibody, body in enumerate(bodies,1):
             #Compute aero displacements, divide into dx,dy,dz
@@ -520,9 +520,15 @@ class PistonInterface(SolverInterface):
             body.aero_loads[1::3] = aero_forces*self.n[1]
             body.aero_loads[2::3] = aero_forces*self.n[2]
 
-            print(body.aero_loads)
-
-        ''' 
+            #Write Loads to File
+            '''
+            file = open("NodalForces.txt", 'w')
+            np.savetxt(file, body.aero_loads)
+            file.close()
+            '''
+        
+        '''
+        OLD FUN3D INTERFACE CODE 
         for ibody, body in enumerate(bodies,1):
             if body.transfer is not None:
                 body.aero_loads = np.zeros(3*body.aero_nnodes, dtype=TransferScheme.dtype)

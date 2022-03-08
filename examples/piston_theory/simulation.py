@@ -86,6 +86,18 @@ x0 = np.array([1,1,1])
 alpha = 10  #Angle of attack (degrees)
 length_dir = np.array([np.cos(alpha*np.pi/180), 0, np.sin(alpha*np.pi/180)]) #Unit vec in length dir
 width_dir = np.array([0, 1, 0])     #Unit vec in width dir
+
+#Check direction to validate unit vectors (and orthogonality?)
+if not (0.99 <= np.linalg.norm(length_dir) <= 1.01) :
+    print('Length direction not a unit vector \n Calculations may be inaccurate', file=sys.stderr)
+    exit(1)
+if not (0.99 <= np.linalg.norm(width_dir) <= 1.01) :
+    print('Width direction not a unit vector \n Calculations may be inaccurate', file=sys.stderr)
+    exit(1)
+if not (-0.01 <= np.dot(length_dir,width_dir) <= 0.01) :
+    print('Spanning vectors not orthogonal \n Calculations may be inaccurate', file=sys.stderr)
+    exit(1)
+
 L = 2.0 #Length
 nL = 30 # Num elems in xi dir
 w = 3.0  #Width
