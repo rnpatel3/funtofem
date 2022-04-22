@@ -71,7 +71,7 @@ class MatrixPencil(object):
 
         # Set the pencil parameter L
         self.n = self.X.shape[0]
-        self.L = self.N/2 - 1
+        self.L = int(self.N/2 - 1)
 
         if self.output_level[-1] == "1":
             print("Number of samples, N = ", self.N)
