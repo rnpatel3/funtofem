@@ -60,7 +60,7 @@ t = 0.025
 svar = Variable('thickness', value=t, lower=1e-3, upper=1.0)
 wing.add_variable('structural', svar)
 
-steps = 20
+steps = 30
 if 'test' in sys.argv:
     steps = 1
 

@@ -381,13 +381,14 @@ class PistonInterface(SolverInterface):
         bodies: :class:`~body.Body`
             list of FUNtoFEM bodies
         """
+        '''
         for function in scenario.functions:
             if function.analysis_type == 'aerodynamic':
                 # the [6] index returns the value
                 if self.comm.Get_rank() == 0:
                     function.value = interface.design_pull_composite_func(function.id)[6]
                 function.value = self.comm.bcast(function.value, root=0)
-
+        '''
         return
 
     def get_function_gradients(self, scenario, bodies, offset):
@@ -520,12 +521,11 @@ class PistonInterface(SolverInterface):
             body.aero_loads[1::3] = aero_forces*self.n[1]
             body.aero_loads[2::3] = aero_forces*self.n[2]
 
-            #Write Loads to File
-            '''
-            file = open("NodalForces.txt", 'w')
-            np.savetxt(file, body.aero_loads)
-            file.close()
-            '''
+            #Write Loads to File at the last step
+            if scenario.steps == step:
+                file = open("NodalForces.txt", 'w')
+                np.savetxt(file, body.aero_loads)
+                file.close()
         
         '''
         OLD FUN3D INTERFACE CODE 
