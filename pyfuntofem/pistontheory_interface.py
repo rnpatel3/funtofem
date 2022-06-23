@@ -517,7 +517,7 @@ class PistonInterface(SolverInterface):
             body.aero_loads[:] = self.nmat@np.diag(areas)@press_i
 
             #Write Loads to File at the last step
-            if scenario.steps == step:
+            if step == scenario.steps:
                 file = open("NodalForces.txt", 'w')
                 np.savetxt(file, body.aero_loads)
                 file.close()
@@ -686,10 +686,10 @@ class PistonInterface(SolverInterface):
             if body.aero_nnodes > 0:
                 # Solve the force adjoint equation
                 if body.transfer is not None:
-                    psi_F = - body.dLdfa
+                    psi_P = - body.dLdfa
         
         for ibody, body in enumerate(bodies, 1):
-            # Extract the equivalent of dG/du_a^T psi_G from FUN3D (dP/du_a^T psi_P)
+            # Extract the equivalent of dG/du_a^T psi_G from Piston Theory (dP/du_a^T psi_P)
             if body.transfer is not None:
                 dw_dxi = self.CD_mat@self.w
                 dw_dt = np.zeros(body.aero_nnodes)
@@ -699,8 +699,9 @@ class PistonInterface(SolverInterface):
 
                 #dP/du_a solved via reverse chain rule
                 dPduA = self.nmat.T@np.diag(areas).T@dPress_ddw_dxi@self.CD_mat.T@self.nmat
-
-                pass
+                
+                for func in range(nfunctions):
+                    body.dGdua[:, func] = dPduA.T@psi_P
                 
 
         '''
