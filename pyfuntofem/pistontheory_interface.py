@@ -475,7 +475,7 @@ class PistonInterface(SolverInterface):
             '''
 
             #Compute w for piston theory: [dx,dy,dz] DOT planarNormal
-            self.nmat = np.zeros(3*body.aero_nnodes, body.aero_nnodes)
+            self.nmat = np.zeros((3*body.aero_nnodes, body.aero_nnodes))
             for i in range(body.aero_nnodes):
                 self.nmat[3*i:3*i+3, i] = self.n
             self.w = self.nmat.T@body.aero_disps
@@ -698,10 +698,11 @@ class PistonInterface(SolverInterface):
                 areas = self.compute_Areas(bodies)
 
                 #dP/du_a solved via reverse chain rule
-                dPduA = self.nmat.T@np.diag(areas).T@dPress_ddw_dxi@self.CD_mat.T@self.nmat
+                dPdua = self.nmat@np.diag(areas).T@np.diag(dPress_ddw_dxi)@self.CD_mat.T@self.nmat.T
                 
                 for func in range(nfunctions):
-                    body.dGdua[:, func] = dPduA.T@psi_P
+                    adj_dPduaProduct = dPdua.T@psi_P
+                    body.dGdua[:, func] = dPdua.T@psi_P.flatten()
                 
 
         '''
@@ -809,8 +810,8 @@ class PistonInterface(SolverInterface):
         """
 
         # solve the initial condition adjoint
-        self.fun3d_adjoint.post()
-        os.chdir("../..")
+        #self.fun3d_adjoint.post()
+        #os.chdir("../..")
 
     def step_pre(self, scenario, bodies, step):
         self.fun3d_flow.step_pre(step)
