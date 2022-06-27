@@ -83,6 +83,9 @@ class PistonInterface(SolverInterface):
         self.CD_mat = []
         self.w = []
 
+        self.p = [] #Derivative verification perturbation
+        self.cs = [] #CS approx of gradient
+
         # Get the initial aero surface meshes
         self.initialize(model.scenarios[0], model.bodies, first_pass=True)
         #self.post(model.scenarios[0], model.bodies, first_pass=True)
@@ -474,11 +477,17 @@ class PistonInterface(SolverInterface):
             self.w = disps@np.transpose(self.n)
             '''
 
+            #Setup perturbation for CS verification
+            dh = 1e-30
+            self.p = np.random.uniform(size=body.aero_nnodes*3)
+            new_aero_disps = body.aero_disps + 1j*dh*self.p
+
             #Compute w for piston theory: [dx,dy,dz] DOT planarNormal
             self.nmat = np.zeros((3*body.aero_nnodes, body.aero_nnodes))
             for i in range(body.aero_nnodes):
                 self.nmat[3*i:3*i+3, i] = self.n
-            self.w = self.nmat.T@body.aero_disps
+            #self.w = self.nmat.T@body.aero_disps
+            self.w = self.nmat.T@new_aero_disps
 
             # Compute body.aero_loads using Piston Theory:
 
@@ -514,13 +523,14 @@ class PistonInterface(SolverInterface):
             body.aero_loads[2::3] = aero_forces*self.n[2]
             '''
 
+            self.cs = ((self.nmat@np.diag(areas)@press_i).imag)/dh
             body.aero_loads[:] = self.nmat@np.diag(areas)@press_i
 
             #Write Loads to File at the last step
-            if step == scenario.steps:
-                file = open("NodalForces.txt", 'w')
-                np.savetxt(file, body.aero_loads)
-                file.close()
+            #if step == scenario.steps:
+            #    file = open("NodalForces.txt", 'w')
+            #    np.savetxt(file, body.aero_loads)
+            #    file.close()
         
         '''
         OLD FUN3D INTERFACE CODE 
@@ -699,9 +709,12 @@ class PistonInterface(SolverInterface):
 
                 #dP/du_a solved via reverse chain rule
                 dPdua = self.nmat@np.diag(areas).T@np.diag(dPress_ddw_dxi)@self.CD_mat.T@self.nmat.T
+
+                adjoint_result = np.dot(dPdua,self.p)
+                print('dfadua: %20.10e  CS: %20.10e  Rel. Error: %20.10e'%(
+                adjoint_result, self.cs, np.abs((adjoint_result - self.cs)/self.cs)))
                 
                 for func in range(nfunctions):
-                    adj_dPduaProduct = dPdua.T@psi_P
                     body.dGdua[:, func] = dPdua.T@psi_P.flatten()
                 
 
