@@ -82,6 +82,7 @@ class PistonInterface(SolverInterface):
         
         self.CD_mat = []
         self.nmat = []
+        self.aero_nnodes = []
 
         # Get the initial aero surface meshes
         self.initialize(model.scenarios[0], model.bodies, first_pass=True)
@@ -151,6 +152,7 @@ class PistonInterface(SolverInterface):
         # During the first pass we don't have any meshes yet
         if not first_pass:
             for ibody,body in enumerate(bodies,1):
+                self.aero_nnodes = body.aero_nnodes
                 if body.shape and body.aero_nnodes > 0:
                     aero_X = np.reshape(body.aero_X, (3,-1), order='F')
                     #interface.design_push_body_mesh(ibody, aero_X, body.aero_id)
@@ -184,12 +186,13 @@ class PistonInterface(SolverInterface):
                 self.CD_mat[-1][-1] = 2
                 self.CD_mat *= 1/(2*self.L/self.nL)
                 
-                self.nmat = np.zeros((3*body.aero_nnodes, 3*body.aero_nnodes))
-                for i in range(self.aero_nnodes):
+                self.nmat = np.zeros((3*body.aero_nnodes, body.aero_nnodes))
+                for i in range(body.aero_nnodes):
                     self.nmat[3*i:3*i+3, i] = self.n
                 
                 if body.aero_nnodes > 0:
                     body.aero_id = np.arange(1,body.aero_nnodes)
+                    body.aero_loads = np.zeros(3*body.aero_nnodes, dtype=TransferScheme.dtype)
                     #Extracting node locations
                     for i in range(self.nL+1):
                         for j in range(self.nw+1):
@@ -480,16 +483,17 @@ class PistonInterface(SolverInterface):
         # Calculate aero_loads from aero_disps
         for ibody, body in enumerate(bodies,1):
             self.compute_forces(body.aero_disps, body.aero_loads)
-
+            print(body.aero_loads[-1])
             #Write Loads to File at the last step
-            #if step == scenario.steps:
-            #    file = open("NodalForces.txt", 'w')
-            #    np.savetxt(file, body.aero_loads)
-            #    file.close()
+            if step == scenario.steps:
+                file = open("NodalForces_redo_M1_2.txt", 'w')
+                np.savetxt(file, body.aero_loads)
+                file.close()
         
         return 0
 
     def compute_forces(self, aero_disps, aero_loads):
+
         #Compute w for piston theory: [dx,dy,dz] DOT planarNormal
         w = self.nmat.T@aero_disps
 
@@ -502,7 +506,7 @@ class PistonInterface(SolverInterface):
 
         #Call function to compute pressure
         press_i = self.compute_Pressure(dw_dxi, dw_dt)
-        
+    
         #Compute forces from pressure
         areas = self.compute_Areas()
         aero_loads[:] = self.nmat@np.diag(areas)@press_i
