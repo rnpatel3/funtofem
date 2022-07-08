@@ -382,15 +382,23 @@ class PistonInterface(SolverInterface):
         bodies: :class:`~body.Body`
             list of FUNtoFEM bodies
         """
-        '''
+        
         for function in scenario.functions:
             if function.analysis_type == 'aerodynamic':
                 # the [6] index returns the value
                 if self.comm.Get_rank() == 0:
-                    function.value = interface.design_pull_composite_func(function.id)[6]
+                    if function.name == 'cl':
+                        function.value = self.compute_cl(scenario, bodies)
                 function.value = self.comm.bcast(function.value, root=0)
-        '''
+        
         return
+
+    def compute_cl(self, scenario, bodies):
+        for ibody, body in enumerate(bodies,1):
+            lift = np.sum(body.aero_loads) 
+            cl = lift/(self.L * self.width)
+        
+        return cl
 
     def get_function_gradients(self, scenario, bodies, offset):
         """
@@ -483,7 +491,6 @@ class PistonInterface(SolverInterface):
         # Calculate aero_loads from aero_disps
         for ibody, body in enumerate(bodies,1):
             self.compute_forces(body.aero_disps, body.aero_loads)
-            print(body.aero_loads[-1])
             #Write Loads to File at the last step
             if step == scenario.steps:
                 file = open("NodalForces_redo_M1_2.txt", 'w')
