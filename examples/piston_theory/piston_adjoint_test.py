@@ -55,6 +55,19 @@ class PistonInterface():
         self.nw = nw #num elems in eta direction
 
         self.n = np.cross(self.width_dir, self.length_dir) #Setup vector normal to plane
+
+        self.w = []
+
+        self.p = [] #Derivative verification perturbation
+        self.cs = [] #CS approx of gradient
+
+        # Get the initial aero surface meshes
+        self.aero_nnodes = (self.nL+1) * (self.nw+1)
+        self.aero_disps = np.zeros(self.aero_nnodes*3)
+        self.aero_X = np.zeros(3*self.aero_nnodes)
+
+        self.aero_loads = np.zeros(3*self.aero_nnodes)
+
         self.nmat = np.zeros((3*self.aero_nnodes, self.aero_nnodes))
         for i in range(self.aero_nnodes):
             self.nmat[3*i:3*i+3, i] = self.n
@@ -71,17 +84,6 @@ class PistonInterface():
         self.CD_mat[-1][-1] = 2
         self.CD_mat *= 1/(2*self.L/self.nL)
 
-        self.w = []
-
-        self.p = [] #Derivative verification perturbation
-        self.cs = [] #CS approx of gradient
-
-        # Get the initial aero surface meshes
-        self.aero_nnodes = (self.nL+1) * (self.nw+1)
-        self.aero_disps = np.zeros(self.aero_nnodes*3)
-        self.aero_X = np.zeros(3*self.aero_nnodes)
-
-        self.aero_loads = np.zeros(3*self.aero_nnodes)
         if self.aero_nnodes > 0:
             #Extracting node locations
             for i in range(self.nL+1):
@@ -153,9 +155,7 @@ class PistonInterface():
     def compute_forces(self, aero_disps, aero_loads):
         #Compute w for piston theory: [dx,dy,dz] DOT planarNormal
 
-        #self.w = self.nmat.T@body.aero_disps
         w = self.nmat.T@aero_disps
-        #self.w = self.computeW(self.aero_disps)
 
         # Compute body.aero_loads using Piston Theory:
 
@@ -174,22 +174,34 @@ class PistonInterface():
         return
 
     def compute_forces_adjoint(self, aero_disps, adjoint_loads, adjoint_disps):
+        '''
         w = self.nmat.T@aero_disps
         dw_dxi = self.CD_mat@w
         #Set dw/dt = 0  for now (steady)
         dw_dt = np.zeros(self.aero_nnodes)
         areas = self.compute_Areas()
         press_adj = np.diag(areas).T@self.nmat.T@adjoint_loads #pressure adjoint
+        #print("press_adj: \n", press_adj)
         dwdxi_adj, dwdt_adj = self.compute_Pressure_adjoint(dw_dxi, dw_dt, press_adj)
+        #print("dwdxi_adj: \n", dwdxi_adj)
         w_adj = self.CD_mat.T@dwdxi_adj
-        adjoint_disps = self.nmat@w_adj
-    
+        #print("w_adj: \n", w_adj)
+        adjoint_disps[:] = self.nmat@w_adj
+        #print("adjoint_disps: \n", adjoint_disps)
+        '''
+        w = self.nmat.T@aero_disps
+        dw_dxi = self.CD_mat@w
+        dw_dt = np.zeros(self.aero_nnodes)
+        areas = self.compute_Areas()
+        dwdxi_adj = self.compute_Pressure_deriv(dw_dxi, dw_dt)
+        Press = self.compute_Pressure(dw_dxi, dw_dt)
+        adjoint_disps[:] = -self.nmat@np.diag(areas)@np.diag(dwdxi_adj)@self.CD_mat@self.nmat.T - self.nmat@np.diag(areas)@np.diag(Press)@self.CD_mat@self.nmat.T
         return
     
     def compute_Pressure_adjoint(self, dw_dxi, dw_dt, press_adj):
         d_press_dxi = self.compute_Pressure_deriv(dw_dxi, dw_dt)
-        dw_dxi_adjoint = d_press_dxi*press_adj
-        return dw_dxi_adjoint,None
+        dw_dxi_adjoint = np.diag(d_press_dxi)@press_adj #Verify this is a component wise product
+        return dw_dxi_adjoint, None
     
     def compute_Pressure(self, dw_dxi, dw_dt):
         '''
@@ -279,6 +291,18 @@ class PistonInterface():
 
         return adjoint_result
 
+    def computeResidual_deriv(self, w):
+        dw_dxi = self.CD_mat@w
+        areas = self.compute_Areas()
+        dRes_ddw_dxi = self.nmat@np.diag(areas)@np.diag(self.compute_Pressure_deriv(dw_dxi,dw_dt=np.zeros(self.aero_nnodes)))@self.CD_mat
+        return dRes_ddw_dxi
+
+    def computeResidual(self, w):
+        dw_dxi = self.CD_mat@w
+        press = self.compute_Pressure(dw_dxi, dw_dt=np.zeros(self.aero_nnodes))
+        areas = self.compute_Areas()
+        return self.nmat@np.diag(areas)@press
+
 
 qinf = 101325.0 # freestream pressure Pa
 M = 1.2     # Mach number
@@ -292,12 +316,33 @@ nL = 10 # Num elems in xi dir
 w = 3.0  #Width
 nw = 10 # Num elems in eta dir
 piston = PistonInterface(qinf, M, U_inf, x0, length_dir, width_dir, L, w, nL, nw)
-piston.iterate()
-adjoint_result = piston.iterate_adjoint()
+dh = 1e-30
+psi_P = np.ones(piston.aero_nnodes*3)
+aero_disps = 0.5*np.random.uniform(low=0.0, high=0.1, size=piston.aero_nnodes*3)
+p = 0.01*np.ones(piston.aero_nnodes*3)
+aero_loads = np.zeros(piston.aero_nnodes*3)
+adjoint_disps = np.zeros((piston.aero_nnodes*3,piston.aero_nnodes*3))
+piston.compute_forces(aero_disps, aero_loads)
+#print("aero loads: ", aero_loads)
+piston.compute_forces_adjoint(aero_disps, aero_loads, adjoint_disps)
+print("returned adj_disps: \n", adjoint_disps)
+dfdua = adjoint_disps.T@p
+aero_loads = np.zeros(piston.aero_nnodes*3, dtype=complex)
+piston.compute_forces(aero_disps+1j*dh*p, aero_loads)
+cs = (aero_loads.imag/dh)
 
-print('dfadua: ',adjoint_result, 'CS: ', piston.cs, 'Rel. Error: ', 
-        np.abs((adjoint_result - piston.cs)/piston.cs))
+print('dfadua: ',dfdua, 'CS: ', cs, 'Rel. Error: ', 
+        np.abs((dfdua - cs)/cs))
 
+
+
+#piston.iterate()
+#adjoint_result = piston.iterate_adjoint()
+
+#print('dfadua: ',adjoint_result, 'CS: ', piston.cs, 'Rel. Error: ', 
+#        np.abs((adjoint_result - piston.cs)/piston.cs))
+
+'''
 dh = 1e-30
 dw_dxi = 0.05*np.ones(piston.aero_nnodes)
 dw_dt = np.zeros(piston.aero_nnodes)
@@ -305,6 +350,22 @@ aero_disps = 0.5*np.ones(piston.aero_nnodes*3)
 p = 0.01*np.ones(piston.aero_nnodes)
 press_cs = piston.compute_Pressure(dw_dxi+1j*dh*p, dw_dt).imag/dh   #verifying dPress/ddwdxi
 adjoint_result = np.dot(np.diag(piston.compute_Pressure_deriv(dw_dxi, dw_dt)), p)
+#press_cs = piston.computeW(aero_disps+1j*dh*p).imag/dh
+#adjoint_result = np.dot(piston.computeW_deriv(), p)
+
+print('dfadua: ',adjoint_result, 'CS: ', press_cs, 'Rel. Error: ', 
+        np.abs((adjoint_result - press_cs)/press_cs))
+'''
+
+dh = 1e-30
+w = 0.05*np.ones(piston.aero_nnodes)
+dw_dt = np.zeros(piston.aero_nnodes)
+aero_disps = 0.5*np.ones(piston.aero_nnodes*3)
+p = 0.01*np.ones(piston.aero_nnodes)
+press_cs = piston.computeResidual(w+1j*dh*p).imag/dh   #verifying dPress/ddwdxi
+print("CS Terms: ", press_cs)
+adjoint_result = piston.computeResidual_deriv(w)@p
+print("Adj term: ", adjoint_result)
 #press_cs = piston.computeW(aero_disps+1j*dh*p).imag/dh
 #adjoint_result = np.dot(piston.computeW_deriv(), p)
 
