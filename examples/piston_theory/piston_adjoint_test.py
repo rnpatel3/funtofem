@@ -193,9 +193,10 @@ class PistonInterface():
         dw_dxi = self.CD_mat@w
         dw_dt = np.zeros(self.aero_nnodes)
         areas = self.compute_Areas()
+
         dwdxi_adj = self.compute_Pressure_deriv(dw_dxi, dw_dt)
-        Press = self.compute_Pressure(dw_dxi, dw_dt)
-        adjoint_disps[:] = -self.nmat@np.diag(areas)@np.diag(dwdxi_adj)@self.CD_mat@self.nmat.T - self.nmat@np.diag(areas)@np.diag(Press)@self.CD_mat@self.nmat.T
+        adjoint_disps[:] = self.nmat@np.diag(areas)@np.diag(dwdxi_adj)@self.CD_mat@self.nmat.T
+        
         return
     
     def compute_Pressure_adjoint(self, dw_dxi, dw_dt, press_adj):
@@ -291,18 +292,6 @@ class PistonInterface():
 
         return adjoint_result
 
-    def computeResidual_deriv(self, w):
-        dw_dxi = self.CD_mat@w
-        areas = self.compute_Areas()
-        dRes_ddw_dxi = self.nmat@np.diag(areas)@np.diag(self.compute_Pressure_deriv(dw_dxi,dw_dt=np.zeros(self.aero_nnodes)))@self.CD_mat
-        return dRes_ddw_dxi
-
-    def computeResidual(self, w):
-        dw_dxi = self.CD_mat@w
-        press = self.compute_Pressure(dw_dxi, dw_dt=np.zeros(self.aero_nnodes))
-        areas = self.compute_Areas()
-        return self.nmat@np.diag(areas)@press
-
 
 qinf = 101325.0 # freestream pressure Pa
 M = 1.2     # Mach number
@@ -317,16 +306,14 @@ w = 3.0  #Width
 nw = 10 # Num elems in eta dir
 piston = PistonInterface(qinf, M, U_inf, x0, length_dir, width_dir, L, w, nL, nw)
 dh = 1e-30
-psi_P = np.ones(piston.aero_nnodes*3)
-aero_disps = 0.5*np.random.uniform(low=0.0, high=0.1, size=piston.aero_nnodes*3)
-p = 0.01*np.ones(piston.aero_nnodes*3)
+aero_disps = np.random.uniform(low=0.0, high=0.1, size=piston.aero_nnodes*3)
+p = 0.01*np.random.uniform(low=0.0, high=0.1, size=piston.aero_nnodes*3)
 aero_loads = np.zeros(piston.aero_nnodes*3)
 adjoint_disps = np.zeros((piston.aero_nnodes*3,piston.aero_nnodes*3))
 piston.compute_forces(aero_disps, aero_loads)
 #print("aero loads: ", aero_loads)
 piston.compute_forces_adjoint(aero_disps, aero_loads, adjoint_disps)
-print("returned adj_disps: \n", adjoint_disps)
-dfdua = adjoint_disps.T@p
+dfdua = adjoint_disps@p
 aero_loads = np.zeros(piston.aero_nnodes*3, dtype=complex)
 piston.compute_forces(aero_disps+1j*dh*p, aero_loads)
 cs = (aero_loads.imag/dh)
@@ -356,18 +343,3 @@ adjoint_result = np.dot(np.diag(piston.compute_Pressure_deriv(dw_dxi, dw_dt)), p
 print('dfadua: ',adjoint_result, 'CS: ', press_cs, 'Rel. Error: ', 
         np.abs((adjoint_result - press_cs)/press_cs))
 '''
-
-dh = 1e-30
-w = 0.05*np.ones(piston.aero_nnodes)
-dw_dt = np.zeros(piston.aero_nnodes)
-aero_disps = 0.5*np.ones(piston.aero_nnodes*3)
-p = 0.01*np.ones(piston.aero_nnodes)
-press_cs = piston.computeResidual(w+1j*dh*p).imag/dh   #verifying dPress/ddwdxi
-print("CS Terms: ", press_cs)
-adjoint_result = piston.computeResidual_deriv(w)@p
-print("Adj term: ", adjoint_result)
-#press_cs = piston.computeW(aero_disps+1j*dh*p).imag/dh
-#adjoint_result = np.dot(piston.computeW_deriv(), p)
-
-print('dfadua: ',adjoint_result, 'CS: ', press_cs, 'Rel. Error: ', 
-        np.abs((adjoint_result - press_cs)/press_cs))

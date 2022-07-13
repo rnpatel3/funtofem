@@ -78,6 +78,17 @@ class PistonInterface(SolverInterface):
         self.nL = nL #num elems in xi direction
         self.nw = nw #num elems in eta direction
 
+        #Check direction to validate unit vectors (and orthogonality?)
+        if not (0.99 <= np.linalg.norm(self.length_dir) <= 1.01) :
+            print('Length direction not a unit vector \n Calculations may be inaccurate', file=sys.stderr)
+            exit(1)
+        if not (0.99 <= np.linalg.norm(self.width_dir) <= 1.01) :
+            print('Width direction not a unit vector \n Calculations may be inaccurate', file=sys.stderr)
+            exit(1)
+        if not (-0.01 <= np.dot(self.length_dir, self.width_dir) <= 0.01) :
+            print('Spanning vectors not orthogonal \n Calculations may be inaccurate', file=sys.stderr)
+            exit(1)
+
         self.n = np.cross(self.width_dir, self.length_dir) #Setup vector normal to plane
         
         self.CD_mat = []
@@ -343,34 +354,19 @@ class PistonInterface(SolverInterface):
         bodies: :class:`~body.Body`
             list of FUNtoFEM bodies. Bodies contains unused but necessary rigid motion variables
         """
-        pass
 
-    '''
-        interface.design_set_design(len(bodies), scenario.count_adjoint_functions())
-
-        # push the global aerodynamic variables to fun3d
         for var in scenario.variables['aerodynamic']:
-            if var.id <= 6:
-                interface.design_push_global_var(var.id, var.active, var.value,
-                                                 var.lower, var.upper)
-            elif 'dynamic pressure' == var.name.lower():
-                self.qinf = var.value
-            elif 'thermal scale' == var.name.lower():
-                self.thermal_scale = var.value
+            if var.name == 'AoA':
+                self.set_AoA(var.value, scenario, bodies)
+        
+        return
 
-        # push the push the shape and rigid motion variables
-        for ibody, body in enumerate(bodies,1):
-            num = len(body.variables['shape']) if 'shape' in body.variables else 1
-            interface.design_set_body(ibody, body.parameterization, num)
-            if 'shape' in body.variables:
-                for var in body.variables['shape']:
-                    interface.design_push_body_shape_var(ibody, var.id, var.active,
-                                                         var.value, var.lower, var.upper)
+    def set_AoA(self, alpha, scenario, bodies):
+        self.length_dir = np.array([np.cos(alpha*np.pi/180), 0, np.sin(alpha*np.pi/180)]) #Unit vec in length dir
+        self.n = np.cross(self.width_dir, self.length_dir) #Setup vector normal to plane
+        self.initialize(scenario, bodies, first_pass=True) #Is there a better way to reset this variable???
+        return
 
-            for var in body.variables['rigid_motion']:
-                interface.design_push_body_rigid_var(ibody, var.id, var.name, var.active,
-                                                     var.value, var.lower, var.upper)
-        '''
     def get_functions(self, scenario, bodies):
         """
         Populate the scenario with the aerodynamic function values.
@@ -522,14 +518,12 @@ class PistonInterface(SolverInterface):
     def compute_forces_adjoint(self, aero_disps, adjoint_loads, adjoint_disps):
         w = self.nmat.T@aero_disps
         dw_dxi = self.CD_mat@w
-        #Set dw/dt = 0  for now (steady)
-        dw_dt = np.zeros(self.aero_nnodes)
+        dw_dt = np.zeros(self.aero_nnodes)  #Set dw/dt = 0  for now (steady)
         areas = self.compute_Areas()
 
-        press_adj = np.diag(areas).T@self.nmat.T@adjoint_loads #pressure adjoint
-        dwdxi_adj, dwdt_adj = self.compute_Pressure_adjoint(dw_dxi, dw_dt, press_adj)
-        w_adj = self.CD_mat.T@dwdxi_adj
-        adjoint_disps[:] = self.nmat@w_adj
+        dwdxi_deriv = self.compute_Pressure_deriv(dw_dxi, dw_dt)
+        adjoint_disps[:] = self.nmat@np.diag(areas)@np.diag(dwdxi_deriv)@self.CD_mat@self.nmat.T
+
         return
     
     def compute_Pressure_adjoint(self, dw_dxi, dw_dt, press_adj):
@@ -685,9 +679,10 @@ class PistonInterface(SolverInterface):
         # solve the initial condition adjoint
         #self.fun3d_adjoint.post()
         #os.chdir("../..")
+        pass
 
     def step_pre(self, scenario, bodies, step):
-        self.fun3d_flow.step_pre(step)
+        #self.fun3d_flow.step_pre(step)
         return 0
 
     def step_solver(self, scenario, bodies, step, fsi_subiter):
