@@ -70,18 +70,19 @@ class AdjointTest(object):
         length_dir = np.array([np.cos(alpha*np.pi/180), 0, np.sin(alpha*np.pi/180)]) #Unit vec in length dir
         width_dir = np.array([0, 1, 0]) 
         L = 2.0 #Length (chord)
-        nL = 30 # Num elems in xi dir
+        nL = 20 # Num elems in xi dir
         w = 5.0  #Width (span)
-        nw = 50 # Num elems in eta dir
+        nw = 40 # Num elems in eta dir
         solvers['flow'] = PistonInterface(self.comm, self.model, qinf, M, U_inf, x0, length_dir, width_dir,
                             L, w, nL, nw)
         solvers['structural'] = OneraPlate(self.comm, self.tacs_comm, self.model, n_tacs_procs)
 
         # L&D transfer options
         transfer_options = {
-            'analysis_type': 'aeroelastic',
             'scheme': 'meld',
-            'npts': 5}
+            'beta': 0.5,
+            'npts': 50,
+            'isym': 1}
 
         # instantiate the driver
         self.driver = FUNtoFEMnlbgs(solvers, self.comm, self.tacs_comm, 0, self.comm, 0,
@@ -108,7 +109,7 @@ class AdjointTest(object):
         wing.add_variable('aerodynamic', avar)
         model.add_body(wing)
 
-        steady = Scenario('steady', group=0, steps=100)
+        steady = Scenario('steady', group=0, steps=50)
 
         mass = Function('mass', analysis_type='structural')
         steady.add_function(mass)
@@ -164,6 +165,8 @@ xreal = np.array([0.015], dtype=TransferScheme.dtype)
 dp = AdjointTest()
 
 obj1, con1, fail = dp.eval_objcon(xreal)
+print("Objective value: ", obj1)
+print("\n Constraint value: ", con1)
 g, A, fail = dp.eval_objcon_grad(xreal)
 print('Adjoint objective gradient ', g)
 for ac in A:

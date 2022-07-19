@@ -25,6 +25,8 @@ from turtle import width
 
 import numpy as np
 import os
+import sys
+np.set_printoptions(threshold=sys.maxsize)
 #from fun3d.solvers      import Flow, Adjoint
 #from fun3d              import interface
 from funtofem           import TransferScheme
@@ -391,7 +393,7 @@ class PistonInterface(SolverInterface):
 
     def compute_cl(self, scenario, bodies):
         for ibody, body in enumerate(bodies,1):
-            lift = np.sum(body.aero_loads) 
+            lift = np.sum(body.aero_loads)
             cl = lift/(self.L * self.width)
         
         return cl
@@ -659,7 +661,7 @@ class PistonInterface(SolverInterface):
                 self.compute_forces_adjoint(body.aero_disps, body.aero_loads, dPdua)
 
                 for func in range(nfunctions):
-                    body.dGdua[:, func] = dPdua.T@psi_P.flatten()
+                    body.dGdua[:, func] = dPdua.T@psi_P[:, func].flatten()
                 
         return fail
 
