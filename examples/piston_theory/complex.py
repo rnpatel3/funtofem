@@ -62,7 +62,19 @@ class AdjointTest(object):
 
         # instantiate TACS on the master
         solvers = {}
-        solvers['flow'] = PistonInterface(self.comm, self.model)
+        qinf = 101325.0 # freestream pressure Pa
+        M = 1.2     # Mach number
+        U_inf = 411 #Freestream velocity m/s
+        x0 = np.array([1,1,1])
+        alpha = 10  #Angle of attack (degrees)
+        length_dir = np.array([np.cos(alpha*np.pi/180), 0, np.sin(alpha*np.pi/180)]) #Unit vec in length dir
+        width_dir = np.array([0, 1, 0]) 
+        L = 2.0 #Length (chord)
+        nL = 30 # Num elems in xi dir
+        w = 5.0  #Width (span)
+        nw = 50 # Num elems in eta dir
+        solvers['flow'] = PistonInterface(self.comm, self.model, qinf, M, U_inf, x0, length_dir, width_dir,
+                            L, w, nL, nw)
         solvers['structural'] = OneraPlate(self.comm, self.tacs_comm, self.model, n_tacs_procs)
 
         # L&D transfer options
@@ -86,20 +98,20 @@ class AdjointTest(object):
 
     def _build_model(self):
 
-        thickness = 0.015
+        AoA = 10.0
 
         # Build the model
         model = FUNtoFEMmodel('onera')
         wing = Body('wing', 'aeroelastic', group=0, boundary=1)
 
-        svar = Variable('thickness', value=thickness, lower=0.01, upper=0.1)
-        wing.add_variable('structural', svar)
+        avar = Variable('AoA', value=AoA, lower=0.01, upper=0.1)
+        wing.add_variable('aerodynamic', avar)
         model.add_body(wing)
 
         steady = Scenario('steady', group=0, steps=100)
 
-        temp = Function('mass', analysis_type='structural')
-        steady.add_function(temp)
+        mass = Function('mass', analysis_type='structural')
+        steady.add_function(mass)
 
         #failure = Function('ksfailure', analysis_type='structural')
         failure = Function('cl', analysis_type='aerodynamic')
