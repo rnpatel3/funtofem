@@ -200,6 +200,7 @@ class PistonInterface(SolverInterface):
                 self.CD_mat *= 1/(2*self.L/self.nL)
                 
                 self.nmat = np.zeros((3*body.aero_nnodes, body.aero_nnodes))
+                self.n = np.array([0,0,1])
                 for i in range(body.aero_nnodes):
                     self.nmat[3*i:3*i+3, i] = self.n
                 
@@ -488,7 +489,7 @@ class PistonInterface(SolverInterface):
         
         # Calculate aero_loads from aero_disps
         for ibody, body in enumerate(bodies,1):
-            self.compute_forces(body.aero_disps, body.aero_loads)
+            self.compute_forces(body.aero_disps, body.aero_loads, body.aero_X)
             #Write Loads to File at the last step
             if step == scenario.steps:
                 file = open("NodalForces_redo_M1_2.txt", 'w')
@@ -497,11 +498,11 @@ class PistonInterface(SolverInterface):
         
         return 0
 
-    def compute_forces(self, aero_disps, aero_loads):
+    def compute_forces(self, aero_disps, aero_loads, aero_X):
 
         #Compute w for piston theory: [dx,dy,dz] DOT planarNormal
-        w = self.nmat.T@aero_disps
-
+        w = aero_X[2::3] + self.nmat.T@aero_disps
+        
         ####### Compute body.aero_loads using Piston Theory ######
         #First compute dw/dxi
         dw_dxi = self.CD_mat@w
@@ -517,8 +518,8 @@ class PistonInterface(SolverInterface):
         aero_loads[:] = self.nmat@np.diag(areas)@press_i
         return
 
-    def compute_forces_adjoint(self, aero_disps, adjoint_loads, adjoint_disps):
-        w = self.nmat.T@aero_disps
+    def compute_forces_adjoint(self, aero_disps, adjoint_loads, aero_X, adjoint_disps):
+        w = aero_X[2::3] + self.nmat.T@aero_disps
         dw_dxi = self.CD_mat@w
         dw_dt = np.zeros(self.aero_nnodes)  #Set dw/dt = 0  for now (steady)
         areas = self.compute_Areas()
@@ -658,7 +659,7 @@ class PistonInterface(SolverInterface):
             # Extract the equivalent of dG/du_a^T psi_G from Piston Theory (dP/du_a^T psi_P)
             if body.transfer is not None:
                 dPdua = np.zeros((body.aero_nnodes*3, body.aero_nnodes*3), dtype=TransferScheme.dtype)
-                self.compute_forces_adjoint(body.aero_disps, body.aero_loads, dPdua)
+                self.compute_forces_adjoint(body.aero_disps, body.aero_loads, body.aero_X, dPdua)
 
                 for func in range(nfunctions):
                     body.dGdua[:, func] = dPdua.T@psi_P[:, func].flatten()

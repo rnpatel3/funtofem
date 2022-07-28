@@ -60,14 +60,14 @@ t = 0.025
 svar = Variable('thickness', value=t, lower=1e-3, upper=1.0)
 wing.add_variable('structural', svar)
 
-steps = 30
+steps = 10
 if 'test' in sys.argv:
     steps = 1
 
 cruise = Scenario('cruise', steps=steps)
 onera.add_scenario(cruise)
 
-drag = Function('cd', analysis_type='aerodynamic')
+drag = Function('cl', analysis_type='aerodynamic')
 cruise.add_function(drag)
 
 # failure = Function('ksfailure', analysis_type='structural')
@@ -82,7 +82,7 @@ solvers = {}
 qinf = 101325.0 # freestream pressure Pa
 M = 1.2     # Mach number
 U_inf = 411 #Freestream velocity m/s
-x0 = np.array([1,1,1])
+x0 = np.array([0,0,0])
 alpha = 10  #Angle of attack (degrees)
 length_dir = np.array([np.cos(alpha*np.pi/180), 0, np.sin(alpha*np.pi/180)]) #Unit vec in length dir
 width_dir = np.array([0, 1, 0])     #Unit vec in width dir
@@ -98,23 +98,23 @@ if not (-0.01 <= np.dot(length_dir,width_dir) <= 0.01) :
     print('Spanning vectors not orthogonal \n Calculations may be inaccurate', file=sys.stderr)
     exit(1)
 
-L = 2.0 #Length
+L = 1.20 #Length
 nL = 30 # Num elems in xi dir
-w = 3.0  #Width
+w = 1.20  #Width
 nw = 50 # Num elems in eta dir
 solvers['flow'] = PistonInterface(comm, onera, qinf, M, U_inf, x0, length_dir, width_dir,
        L, w, nL, nw)
 solvers['structural'] = OneraPlate(comm, tacs_comm, onera, n_tacs_procs)
 
 # Specify the transfer scheme options
-options = {'scheme': 'meld', 'beta': 0.5, 'npts': 50, 'isym': 1}
+options = {'scheme': 'meld', 'beta': 0.9, 'npts': 10, 'isym': 1}
 
 # Instantiate the driver
 struct_master = 0
 aero_master = 0
 driver = FUNtoFEMnlbgs(solvers, comm, tacs_comm, struct_master,
                        comm, aero_master, model=onera, transfer_options=options,
-                       theta_init=0.5, theta_min=0.1)
+                       theta_init=0.3, theta_min=0.01)
 
 if 'test' in sys.argv:
     fail = driver.solve_forward()

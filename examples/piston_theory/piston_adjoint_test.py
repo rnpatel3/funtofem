@@ -69,6 +69,7 @@ class PistonInterface():
         self.aero_loads = np.zeros(3*self.aero_nnodes)
 
         self.nmat = np.zeros((3*self.aero_nnodes, self.aero_nnodes))
+        self.n = np.array([0,0,1])
         for i in range(self.aero_nnodes):
             self.nmat[3*i:3*i+3, i] = self.n
         
@@ -155,8 +156,8 @@ class PistonInterface():
     def compute_forces(self, aero_disps, aero_loads):
         #Compute w for piston theory: [dx,dy,dz] DOT planarNormal
 
-        w = self.nmat.T@aero_disps
-
+        #w = self.nmat.T@aero_disps
+        w = self.aero_X[2::3] + self.nmat.T@aero_disps
         # Compute body.aero_loads using Piston Theory:
 
         #First compute dw/dxi
@@ -189,7 +190,8 @@ class PistonInterface():
         adjoint_disps[:] = self.nmat@w_adj
         #print("adjoint_disps: \n", adjoint_disps)
         '''
-        w = self.nmat.T@aero_disps
+        #w = self.nmat.T@aero_disps
+        w = self.aero_X[2::3] + self.nmat.T@aero_disps
         dw_dxi = self.CD_mat@w
         dw_dt = np.zeros(self.aero_nnodes)
         areas = self.compute_Areas()
