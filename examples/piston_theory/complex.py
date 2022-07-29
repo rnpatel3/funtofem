@@ -65,14 +65,14 @@ class AdjointTest(object):
         qinf = 101325.0 # freestream pressure Pa
         M = 1.2     # Mach number
         U_inf = 411 #Freestream velocity m/s
-        x0 = np.array([1,1,1])
+        x0 = np.array([0,0,0])
         alpha = 10  #Angle of attack (degrees)
         length_dir = np.array([np.cos(alpha*np.pi/180), 0, np.sin(alpha*np.pi/180)]) #Unit vec in length dir
         width_dir = np.array([0, 1, 0]) 
-        L = 2.0 #Length (chord)
-        nL = 20 # Num elems in xi dir
-        w = 5.0  #Width (span)
-        nw = 40 # Num elems in eta dir
+        L = 1.20 #Length (chord)
+        nL = 30 # Num elems in xi dir
+        w = 1.20  #Width (span)
+        nw = 50 # Num elems in eta dir
         solvers['flow'] = PistonInterface(self.comm, self.model, qinf, M, U_inf, x0, length_dir, width_dir,
                             L, w, nL, nw)
         solvers['structural'] = OneraPlate(self.comm, self.tacs_comm, self.model, n_tacs_procs)
@@ -80,13 +80,13 @@ class AdjointTest(object):
         # L&D transfer options
         transfer_options = {
             'scheme': 'meld',
-            'beta': 0.5,
-            'npts': 50,
+            'beta': 0.9,
+            'npts': 10,
             'isym': 1}
 
         # instantiate the driver
         self.driver = FUNtoFEMnlbgs(solvers, self.comm, self.tacs_comm, 0, self.comm, 0,
-                                    transfer_options, model=self.model)
+                                    transfer_options, model=self.model, theta_init=0.3, theta_min=0.01)
 
         # Set up some variables and constants related to the problem
         self.cruise_lift = None
@@ -105,11 +105,12 @@ class AdjointTest(object):
         model = FUNtoFEMmodel('onera')
         wing = Body('wing', 'aeroelastic', group=0, boundary=1)
 
-        avar = Variable('AoA', value=AoA, lower=0.01, upper=0.1)
+        avar = Variable('AOA', value=AoA, lower=0.01, upper=0.1)
         wing.add_variable('aerodynamic', avar)
         model.add_body(wing)
 
-        steady = Scenario('steady', group=0, steps=50)
+        steady = Scenario('steady', steps=50)
+        steady.set_variable('aerodynamic', name='AOA', value=0.0, lower=-15.0, upper=15.0)
 
         mass = Function('mass', analysis_type='structural')
         steady.add_function(mass)
@@ -159,8 +160,10 @@ class AdjointTest(object):
         return g, A, fail
 
 h = 1e-30
-x = np.array([0.015 +1j*h], dtype=TransferScheme.dtype)
-xreal = np.array([0.015], dtype=TransferScheme.dtype)
+h = 1e-6
+#x = np.array([0.015 +1j*h], dtype=TransferScheme.dtype)
+x = np.array([1.5 + h], dtype=TransferScheme.dtype)
+xreal = np.array([1.5], dtype=TransferScheme.dtype)
 
 dp = AdjointTest()
 
@@ -173,6 +176,7 @@ for ac in A:
     print('Adjoint constraint gradient ', ac)
 
 obj, con, fail = dp.eval_objcon(x)
-print('Forward objective gradient ', obj.imag/h)
+print('Forward objective gradient ', (obj-obj1)/h)
 for c in con:
-    print('Forward constraint gradient = ', c.imag/h)
+    print("Perturbed constraint value = ", c)
+    print('Forward constraint gradient = ', (c-con1)/h)

@@ -359,14 +359,13 @@ class PistonInterface(SolverInterface):
         """
 
         for var in scenario.variables['aerodynamic']:
-            if var.name == 'AoA':
+            if var.name == 'AOA':
                 self.set_AoA(var.value, scenario, bodies)
         
         return
 
     def set_AoA(self, alpha, scenario, bodies):
         self.length_dir = np.array([np.cos(alpha*np.pi/180), 0, np.sin(alpha*np.pi/180)]) #Unit vec in length dir
-        self.n = np.cross(self.width_dir, self.length_dir) #Setup vector normal to plane
         self.initialize(scenario, bodies, first_pass=True) #Is there a better way to reset this variable???
         return
 
@@ -394,7 +393,7 @@ class PistonInterface(SolverInterface):
 
     def compute_cl(self, scenario, bodies):
         for ibody, body in enumerate(bodies,1):
-            lift = np.sum(body.aero_loads)
+            lift = np.sum(body.aero_loads[2::3])
             cl = lift/(self.L * self.width)
         
         return cl
@@ -421,7 +420,8 @@ class PistonInterface(SolverInterface):
                         if var.active:
                             if function.adjoint:
                                 if var.id<=6:
-                                    scenario.derivatives[vartype][offset+func][i] = interface.design_pull_global_derivative(function.id,var.id)
+                                    scenario.derivatives[vartype][offset+func][i] = 0
+                                    #scenario.derivatives[vartype][offset+func][i] = interface.design_pull_global_derivative(function.id,var.id)
                                 elif var.name.lower() == 'dynamic pressure':
                                     scenario.derivatives[vartype][offset+func][i] = self.comm.reduce(self.dFdqinf[func])
                                     scenario.derivatives[vartype][offset+func][i] = self.comm.reduce(self.dHdq[func])
