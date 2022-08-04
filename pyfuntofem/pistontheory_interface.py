@@ -75,6 +75,7 @@ class PistonInterface(SolverInterface):
         self.x0 = x0
         self.length_dir = length_dir
         self.width_dir = width_dir
+        self.alpha = [] #Actual value declared in initialize
         self.L = L
         self.width = w
         self.nL = nL #num elems in xi direction
@@ -96,6 +97,7 @@ class PistonInterface(SolverInterface):
         self.CD_mat = []
         self.nmat = []
         self.aero_nnodes = []
+        self.psi_P = None
 
         # Get the initial aero surface meshes
         self.initialize(model.scenarios[0], model.bodies, first_pass=True)
@@ -188,6 +190,8 @@ class PistonInterface(SolverInterface):
                 body.aero_nnodes = (self.nL+1) * (self.nw+1)
                 body.aero_X = np.zeros(3*body.aero_nnodes, dtype=TransferScheme.dtype)
                 
+                self.alpha = np.arccos(self.length_dir[0])*180/np.pi
+
                 self.CD_mat = np.zeros((body.aero_nnodes,body.aero_nnodes)) #Matrix for central difference
                 diag_ones = np.ones(body.aero_nnodes-1)
                 diag_neg = -np.ones(body.aero_nnodes-1)
@@ -419,7 +423,9 @@ class PistonInterface(SolverInterface):
                     for i, var in enumerate(scenario.variables[vartype]):
                         if var.active:
                             if function.adjoint:
-                                if var.id<=6:
+                                if var.name == 'AOA':
+                                    scenario.derivatives[vartype][offset+func][i] = self.compute_cl_deriv(scenario, bodies)
+                                elif var.id<=6:
                                     scenario.derivatives[vartype][offset+func][i] = 0
                                     #scenario.derivatives[vartype][offset+func][i] = interface.design_pull_global_derivative(function.id,var.id)
                                 elif var.name.lower() == 'dynamic pressure':
@@ -439,6 +445,23 @@ class PistonInterface(SolverInterface):
                                 body.derivatives[vartype][offset+func][i] = 0.0
 
         return scenario, bodies
+
+    def compute_cl_deriv(self, scenario, bodies):
+        for ibody, body in enumerate(bodies,1):
+            w = body.aero_X[2::3] + self.nmat.T@body.aero_disps
+            dw_dxi = self.CD_mat@w
+            dw_dt = np.zeros(self.aero_nnodes)  #Set dw/dt = 0  for now (steady)
+            areas = self.compute_Areas()
+
+            dwdxi_deriv = self.compute_Pressure_deriv(dw_dxi, dw_dt)
+            dAeroX_dAlpha = np.zeros(body.aero_nnodes*3, dtype=TransferScheme.dtype)
+            for i in range(body.aero_nnodes):
+                r = body.aero_X[3*i]
+                dAeroX_dAlpha[3*i:3*i+3] = np.array([-r*np.pi/180*np.sin(self.alpha*np.pi/180),0,r*np.pi/180*np.cos(self.alpha*np.pi/180)])
+            dP_dAlpha = self.nmat@np.diag(areas)@np.diag(dwdxi_deriv)@self.CD_mat@self.nmat.T@dAeroX_dAlpha
+
+            cl_grad = self.psi_P.T@dP_dAlpha
+        return cl_grad
 
     def get_coordinate_derivatives(self, scenario, bodies, step):
         """
@@ -653,7 +676,7 @@ class PistonInterface(SolverInterface):
             if body.aero_nnodes > 0:
                 # Solve the force adjoint equation
                 if body.transfer is not None:
-                    psi_P = - body.dLdfa
+                    self.psi_P = - body.dLdfa
         
         for ibody, body in enumerate(bodies, 1):
             # Extract the equivalent of dG/du_a^T psi_G from Piston Theory (dP/du_a^T psi_P)
@@ -662,7 +685,7 @@ class PistonInterface(SolverInterface):
                 self.compute_forces_adjoint(body.aero_disps, body.aero_loads, body.aero_X, dPdua)
 
                 for func in range(nfunctions):
-                    body.dGdua[:, func] = dPdua.T@psi_P[:, func].flatten()
+                    body.dGdua[:, func] = dPdua.T@self.psi_P[:, func].flatten()
                 
         return fail
 
