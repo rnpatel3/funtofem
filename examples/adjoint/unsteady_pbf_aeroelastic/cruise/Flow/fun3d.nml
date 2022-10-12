@@ -1,0 +1,90 @@
+&code_run_control
+    stopping_tolerance = 1e-10
+    steps = 10
+    restart_read = 'off'
+    restart_write_freq = 1
+/
+
+&boundary_output_variables
+    mach = .true.
+    temperature = .true.
+    yplus = .true.
+/
+
+&volume_output_variables
+    mach = .true.
+    temperature = .true.
+    vort_mag = .true.
+    residuals = .true.
+    ptot = .true.
+    entropy = .true.
+/
+
+&global
+    boundary_animation_freq = 2
+    volume_animation_freq = -1
+    moving_grid = .true.
+    ignore_grid_velocity = .true.
+    ignore_negative_volumes = .true.
+/
+&nonlinear_solver_parameters
+    time_accuracy = "2ndorderOPT"
+    time_step_nondim =   0.05
+    subiterations =          0
+    schedule_iteration(1:2) = 1,10
+    schedule_cfl(1:2) = 200.0,200.0
+    schedule_cflturb(1:2) = 50.0,50.0
+/
+&elasticity_gmres
+    deform_from_initial_mesh = .false.
+    tol = 1e-12
+    nsearch = 250
+/
+
+&massoud_output
+    funtofem_include_skin_friction = .false.
+/
+
+&raw_grid
+    patch_lumping = 'bc'
+    grid_format = 'aflr3'
+    data_format = 'default'
+/
+
+&project
+    project_rootname = 'fun3d'
+/
+
+&reference_physical_properties
+    mach_number = 0.8
+    reynolds_number = 40000000.0
+    angle_of_attack = 3.0
+    temperature = 300.0
+    temperature_units = 'Kelvin'
+/
+
+&governing_equations
+    viscous_terms = 'laminar'
+    eqn_type = 'compressible'
+/
+
+&force_moment_integ_properties
+    area_reference = 9.492028842884778
+    x_moment_length = 1.1865036053605973
+    y_moment_length = 8.0
+/
+
+&boundary_conditions
+    wall_temperature = 1.0, 1.0, 1.0
+    wall_temp_flag = .true., .true., .true.
+/
+
+&gust_data
+ X0_gust = 0.0           ! Starting location
+ ngust_omc = 1           ! Number of 1-cos impulses
+ l_gust_omc(1) = 2.0     ! Profile wavelength
+ tref_gust_omc(1) = 0.2        ! Start time
+ u_gust_omc(1) = 0.0     ! x velocity magnitude (nondim ie. Mach)
+ v_gust_omc(1) = 0.0     ! y vel mag
+ w_gust_omc(1) = 0.05   ! z vel mag
+/

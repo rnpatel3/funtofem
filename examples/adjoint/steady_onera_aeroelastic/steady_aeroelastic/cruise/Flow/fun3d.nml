@@ -1,0 +1,78 @@
+&code_run_control
+    stopping_tolerance = 1e-10
+    steps = 2500
+    restart_read = 'off'
+/
+
+&boundary_output_variables
+    mach = .true.
+    temperature = .true.
+    yplus = .true.
+/
+
+&volume_output_variables
+    mach = .true.
+    temperature = .true.
+    vort_mag = .true.
+    residuals = .true.
+    ptot = .true.
+    entropy = .true.
+/
+
+&global
+    boundary_animation_freq = 1
+    volume_animation_freq = -1
+    moving_grid = .true.
+    ignore_grid_velocity = .true.
+    ignore_negative_volumes = .true.
+/
+&nonlinear_solver_parameters
+    time_accuracy = "steady"
+    time_step_nondim =   0.1
+    subiterations =          0
+    schedule_iteration(1:2) = 1,10
+    schedule_cfl(1:2) = 200.0,200.0
+    schedule_cflturb(1:2) = 50.0,50.0
+/
+&elasticity_gmres
+    tol = 1e-06
+    nsearch = 250
+/
+
+&massoud_output
+    funtofem_include_skin_friction = .false.
+/
+
+&raw_grid
+    patch_lumping = 'none'
+    grid_format = 'fast'
+    data_format = 'ascii'
+/
+
+&project
+    project_rootname = 'om6inviscid'
+/
+
+&reference_physical_properties
+    mach_number = 1.2
+    reynolds_number = 40000000.0
+    angle_of_attack = 10.0
+    temperature = 300.0
+    temperature_units = 'Kelvin'
+/
+
+&governing_equations
+    viscous_terms = 'inviscid'
+    eqn_type = 'compressible'
+/
+
+&force_moment_integ_properties
+    area_reference = 9.492028842884778
+    x_moment_length = 1.1865036053605973
+    y_moment_length = 8.0
+/
+
+&boundary_conditions
+    wall_temperature = 1.0, 1.0, 1.0
+    wall_temp_flag = .true., .true., .true.
+/

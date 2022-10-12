@@ -1,0 +1,16 @@
+#!/bin/bash
+## Required PBS Directives --------------------------------------
+#PBS -A  AFVAW39842SAM
+#PBS -q debug
+#PBS -l select=1:ncpus=16:mpiprocs=16
+#PBS -l walltime=01:00:00
+#PBS -j oe
+#
+## Optional Directives ------------------------------------
+#PBS -m be
+
+cd $PBS_O_WORKDIR
+source $HOME/.bashrc
+source $HOME/.profile
+#export CMPLX_MODE=1
+time mpiexec_mpt -n 1 nodet_mpi 2>&1 > output.txt
